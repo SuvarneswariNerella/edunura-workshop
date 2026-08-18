@@ -6,6 +6,7 @@ import {
   EducationalBoard,
   StudentEnrollment,
 } from '../types';
+import { TOPIC_CATALOG } from '../data/topics';
 import { TopicSelector } from './TopicSelector';
 import {
   User,
@@ -105,25 +106,42 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
   const isSeniorSecondary = studentClass === '11' || studentClass === '12';
   const availableSubjectOptions = isSeniorSecondary ? SUBJECT_OPTIONS_SENIOR : SUBJECT_OPTIONS_JUNIOR;
 
-  // Subject toggle handler
+  // Subject toggle handler - also removes topics of unselected subject
   const handleToggleSubject = (subjectName: string) => {
     setSelectedSubjects((prev) => {
-      if (prev.includes(subjectName)) {
-        return prev.filter((s) => s !== subjectName);
-      } else {
-        return [...prev, subjectName];
+      const isRemoving = prev.includes(subjectName);
+      const nextSubjects = isRemoving
+        ? prev.filter((s) => s !== subjectName)
+        : [...prev, subjectName];
+
+      if (isRemoving) {
+        const catalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
+        const removedSubjectTopics = catalog
+          ? catalog.topics.filter((t) => t.subject === subjectName).map((t) => t.name)
+          : [];
+        setSelectedTopics((prevTopics) =>
+          prevTopics.filter((t) => !removedSubjectTopics.includes(t))
+        );
       }
+      return nextSubjects;
     });
   };
 
-  // Topic toggle handler
-  const handleToggleTopic = (topicName: string) => {
+  // Single topic selection per subject handler
+  const handleSelectTopic = (topicName: string, subject: SubjectCategory) => {
+    const catalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
+    const subjectTopicNames = catalog
+      ? catalog.topics.filter((t) => t.subject === subject).map((t) => t.name)
+      : [];
+
     setSelectedTopics((prev) => {
+      // If clicking the already selected topic, deselect it
       if (prev.includes(topicName)) {
         return prev.filter((t) => t !== topicName);
-      } else {
-        return [...prev, topicName];
       }
+      // Remove previous selection for THIS subject only, and add the newly chosen topic
+      const withoutOtherTopicsInThisSubject = prev.filter((t) => !subjectTopicNames.includes(t));
+      return [...withoutOtherTopicsInThisSubject, topicName];
     });
   };
 
@@ -167,10 +185,26 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
       }
       return;
     }
-    if (selectedTopics.length === 0) {
-      setErrorMessage('Please select at least one topic from the list to vote for your demo masterclass.');
+
+    // Ensure 1 topic is selected for each chosen subject
+    const currentCatalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
+    if (currentCatalog) {
+      const missingSubjectTopics = selectedSubjects.filter((subj) => {
+        const subjTopics = currentCatalog.topics.filter((t) => t.subject === subj).map((t) => t.name);
+        return !selectedTopics.some((t) => subjTopics.includes(t));
+      });
+
+      if (missingSubjectTopics.length > 0) {
+        setErrorMessage(
+          `Please select 1 topic for each chosen subject (missing: ${missingSubjectTopics.join(', ')}).`
+        );
+        return;
+      }
+    } else if (selectedTopics.length === 0) {
+      setErrorMessage('Please select a topic from the list to vote for your demo masterclass.');
       return;
     }
+
     if (!parentName.trim()) {
       setErrorMessage('Please enter the parent/guardian\'s name.');
       return;
@@ -238,7 +272,15 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
   const isStep1Done = Boolean(studentName.trim() && schoolName.trim());
   const isStep2Done = Boolean(studentClass && board);
   const isStep3Done = Boolean(selectedSubjects.length > 0);
-  const isStep4Done = Boolean(selectedTopics.length > 0);
+  const isStep4Done = Boolean(
+    selectedSubjects.length > 0 &&
+    selectedSubjects.every((subj) => {
+      const catalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
+      if (!catalog) return false;
+      const subjTopics = catalog.topics.filter((t) => t.subject === subj).map((t) => t.name);
+      return selectedTopics.some((t) => subjTopics.includes(t));
+    })
+  );
   const isStep5Done = Boolean(
     parentName.trim() &&
     phone.replace(/\D/g, '').length >= 10 &&
@@ -612,10 +654,10 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  Pick the Toughest Topic! 🔥
+                  Pick 1 Toughest Topic per Subject! 🔥
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Vote for the concept you want our master educator to crack live in the demo
+                  Choose one core concept per subject for our master educator to crack live in the demo
                 </p>
               </div>
             </div>
@@ -624,7 +666,7 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
               studentClass={studentClass}
               selectedSubjects={selectedSubjects}
               selectedTopics={selectedTopics}
-              onToggleTopic={handleToggleTopic}
+              onToggleTopic={handleSelectTopic}
               voteStats={classVoteStats}
             />
           </div>

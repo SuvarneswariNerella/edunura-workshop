@@ -184,7 +184,7 @@ export const SuccessConfirmation: React.FC<SuccessConfirmationProps> = ({
               <span>Topics You Voted to Conquer in Live Demo:</span>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
-              {enrollment.topicsVoted.map((t) => (
+              {(enrollment.demoTopics || (enrollment as any).topicsVoted || []).map((t: string) => (
                 <span
                   key={t}
                   className="px-3 py-1 bg-white border border-amber-300 rounded-xl text-xs font-bold text-amber-950 shadow-xs flex items-center gap-1.5"
