@@ -1,0 +1,6 @@
+{
+  "name": "Edunura Student Enrollment & Demo Topic Choice",
+  "description": "Student registration and demo topic selection portal with dynamic topic choices, voting analytics, and automated SMTP email notification dispatch.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
