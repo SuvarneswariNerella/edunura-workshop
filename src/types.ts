@@ -8,7 +8,14 @@ export type EducationalBoard =
   | 'IGCSE / Cambridge'
   | 'Other';
 
-export type SubjectCategory = 'Maths' | 'Science' | 'Physics' | 'Chemistry';
+export type SubjectCategory =
+  | 'Maths'
+  | 'Science'
+  | 'Physics'
+  | 'Chemistry'
+  | 'Accountancy'
+  | 'Business Studies'
+  | 'Economics';
 
 export interface TopicItem {
   id: string;

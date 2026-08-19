@@ -85,6 +85,24 @@ const SUBJECT_OPTIONS_SENIOR: SubjectOption[] = [
     desc: 'Mole Concept, Thermodynamics, Chemical Bonding & Reactions',
     activeRing: 'border-rose-600 bg-rose-50/80 ring-2 ring-rose-500/20',
   },
+  {
+    name: 'Accountancy',
+    icon: '📊',
+    desc: 'Journal Entries, BRS, Depreciation, Partner Accounts & Shares',
+    activeRing: 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20',
+  },
+  {
+    name: 'Business Studies',
+    icon: '🏢',
+    desc: 'Business Organisation, Finance, Management & Staffing',
+    activeRing: 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-500/20',
+  },
+  {
+    name: 'Economics',
+    icon: '📈',
+    desc: 'Demand Theory, Consumer Equilibrium, National Income & Macroeconomics',
+    activeRing: 'border-sky-600 bg-sky-50/80 ring-2 ring-sky-500/20',
+  },
 ];
 
 export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteStats = {} }) => {
@@ -106,42 +124,56 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
   const isSeniorSecondary = studentClass === '11' || studentClass === '12';
   const availableSubjectOptions = isSeniorSecondary ? SUBJECT_OPTIONS_SENIOR : SUBJECT_OPTIONS_JUNIOR;
 
-  // Subject toggle handler - also removes topics of unselected subject
+  // Subject toggle handler with automatic cleanup of topics when subject is deselected
   const handleToggleSubject = (subjectName: string) => {
     setSelectedSubjects((prev) => {
-      const isRemoving = prev.includes(subjectName);
-      const nextSubjects = isRemoving
+      const isCurrentlySelected = prev.includes(subjectName);
+      const updated = isCurrentlySelected
         ? prev.filter((s) => s !== subjectName)
         : [...prev, subjectName];
 
-      if (isRemoving) {
-        const catalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
-        const removedSubjectTopics = catalog
-          ? catalog.topics.filter((t) => t.subject === subjectName).map((t) => t.name)
-          : [];
-        setSelectedTopics((prevTopics) =>
-          prevTopics.filter((t) => !removedSubjectTopics.includes(t))
-        );
+      // Remove topics associated with the deselected subject
+      if (isCurrentlySelected && studentClass) {
+        const currentCatalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
+        if (currentCatalog) {
+          const deselectedSubjectTopicNames = currentCatalog.topics
+            .filter((t) => t.subject === subjectName)
+            .map((t) => t.name);
+          setSelectedTopics((tPrev) =>
+            tPrev.filter((topic) => !deselectedSubjectTopicNames.includes(topic))
+          );
+        }
       }
-      return nextSubjects;
+      return updated;
     });
   };
 
-  // Single topic selection per subject handler
-  const handleSelectTopic = (topicName: string, subject: SubjectCategory) => {
-    const catalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
-    const subjectTopicNames = catalog
-      ? catalog.topics.filter((t) => t.subject === subject).map((t) => t.name)
-      : [];
+  // Topic selection handler: enforces exactly 1 topic per subject (e.g. 1 in Maths and 1 in Science)
+  const handleToggleTopic = (topicName: string, subjectName?: string) => {
+    if (!studentClass) return;
+    const currentCatalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
+    if (!currentCatalog) return;
+
+    // Identify which subject this topic belongs to
+    const targetSubject =
+      subjectName || currentCatalog.topics.find((t) => t.name === topicName)?.subject;
+
+    if (!targetSubject) return;
+
+    const subjectTopicNames = currentCatalog.topics
+      .filter((t) => t.subject === targetSubject)
+      .map((t) => t.name);
 
     setSelectedTopics((prev) => {
-      // If clicking the already selected topic, deselect it
+      // Remove any previously selected topic for this subject
+      const otherSubjectsTopics = prev.filter((t) => !subjectTopicNames.includes(t));
+
+      // If clicked topic is already selected, deselect it; otherwise select it (replaces previous topic in this subject)
       if (prev.includes(topicName)) {
-        return prev.filter((t) => t !== topicName);
+        return otherSubjectsTopics;
+      } else {
+        return [...otherSubjectsTopics, topicName];
       }
-      // Remove previous selection for THIS subject only, and add the newly chosen topic
-      const withoutOtherTopicsInThisSubject = prev.filter((t) => !subjectTopicNames.includes(t));
-      return [...withoutOtherTopicsInThisSubject, topicName];
     });
   };
 
@@ -151,7 +183,7 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
     setSelectedTopics([]);
     const isNewSenior = newClass === '11' || newClass === '12';
     const validSubjectNames = isNewSenior
-      ? ['Maths', 'Physics', 'Chemistry']
+      ? ['Maths', 'Physics', 'Chemistry', 'Accountancy', 'Business Studies', 'Economics']
       : ['Maths', 'Science'];
     setSelectedSubjects((prev) => prev.filter((s) => validSubjectNames.includes(s)));
   };
@@ -179,29 +211,27 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
     }
     if (selectedSubjects.length === 0) {
       if (isSeniorSecondary) {
-        setErrorMessage('Please select at least one interested subject (Maths, Physics, or Chemistry).');
+        setErrorMessage('Please select at least one interested subject (Maths, Physics, Chemistry, Accountancy, Business Studies, or Economics).');
       } else {
         setErrorMessage('Please select at least one interested subject (Maths or Science).');
       }
       return;
     }
+    if (selectedTopics.length === 0) {
+      setErrorMessage(`Please select 1 topic for each of your selected subject(s) (${selectedSubjects.join(', ')}).`);
+      return;
+    }
 
-    // Ensure 1 topic is selected for each chosen subject
-    const currentCatalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
-    if (currentCatalog) {
-      const missingSubjectTopics = selectedSubjects.filter((subj) => {
-        const subjTopics = currentCatalog.topics.filter((t) => t.subject === subj).map((t) => t.name);
-        return !selectedTopics.some((t) => subjTopics.includes(t));
-      });
+    const currentCatalog = studentClass ? TOPIC_CATALOG.find((c) => c.classNumber === studentClass) : null;
+    const missingSubjects = selectedSubjects.filter((subj) => {
+      const subjTopicNames = currentCatalog?.topics.filter((t) => t.subject === subj).map((t) => t.name) || [];
+      return !selectedTopics.some((t) => subjTopicNames.includes(t));
+    });
 
-      if (missingSubjectTopics.length > 0) {
-        setErrorMessage(
-          `Please select 1 topic for each chosen subject (missing: ${missingSubjectTopics.join(', ')}).`
-        );
-        return;
-      }
-    } else if (selectedTopics.length === 0) {
-      setErrorMessage('Please select a topic from the list to vote for your demo masterclass.');
+    if (missingSubjects.length > 0) {
+      setErrorMessage(
+        `Please select 1 topic for each of your selected subjects. Missing topic selection for: ${missingSubjects.join(', ')}.`
+      );
       return;
     }
 
@@ -272,15 +302,16 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
   const isStep1Done = Boolean(studentName.trim() && schoolName.trim());
   const isStep2Done = Boolean(studentClass && board);
   const isStep3Done = Boolean(selectedSubjects.length > 0);
-  const isStep4Done = Boolean(
+  
+  const currentCatalog = studentClass ? TOPIC_CATALOG.find((c) => c.classNumber === studentClass) : null;
+  const isAllSubjectsTopicSelected =
     selectedSubjects.length > 0 &&
     selectedSubjects.every((subj) => {
-      const catalog = TOPIC_CATALOG.find((c) => c.classNumber === studentClass);
-      if (!catalog) return false;
-      const subjTopics = catalog.topics.filter((t) => t.subject === subj).map((t) => t.name);
-      return selectedTopics.some((t) => subjTopics.includes(t));
-    })
-  );
+      const subjTopicNames = currentCatalog?.topics.filter((t) => t.subject === subj).map((t) => t.name) || [];
+      return selectedTopics.some((t) => subjTopicNames.includes(t));
+    });
+  const isStep4Done = Boolean(selectedTopics.length > 0 && isAllSubjectsTopicSelected);
+
   const isStep5Done = Boolean(
     parentName.trim() &&
     phone.replace(/\D/g, '').length >= 10 &&
@@ -291,7 +322,7 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
   const steps = [
     { id: 1, label: 'Profile', isDone: isStep1Done },
     { id: 2, label: 'Grade & Board', isDone: isStep2Done },
-    { id: 3, label: isSeniorSecondary ? 'PCM Subjects' : 'Subjects', isDone: isStep3Done },
+    { id: 3, label: 'Subjects', isDone: isStep3Done },
     { id: 4, label: 'Topic Vote', isDone: isStep4Done },
     { id: 5, label: 'Contact', isDone: isStep5Done },
   ];
@@ -573,12 +604,12 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
                   {isSeniorSecondary
-                    ? 'Senior Secondary Subjects (Maths, Physics, Chemistry) ⚡'
+                    ? 'Senior Secondary Subjects (Science & Commerce) ⚡'
                     : 'Subjects You Want to Conquer ⚡'}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {isSeniorSecondary
-                    ? 'Select the core subjects you want covered in your demo masterclass'
+                    ? 'Select the subjects you want covered in your demo masterclass'
                     : 'Select Maths or Science to unlock demo topic voting'}
                 </p>
               </div>
@@ -590,14 +621,14 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
                 <div>
                   <p className="font-bold text-amber-950">Please select your Grade / Class in Step 2 above first!</p>
                   <p className="text-amber-800 font-normal mt-0.5">
-                    Classes 6 to 10 feature <strong>Maths & Science</strong>. Classes 11 & 12 feature <strong>Maths, Physics & Chemistry</strong>.
+                    Classes 6 to 10 feature <strong>Maths & Science</strong>. Classes 11 & 12 feature <strong>Maths, Physics, Chemistry, Accountancy, Business Studies & Economics</strong>.
                   </p>
                 </div>
               </div>
             ) : (
               <div
                 className={`grid gap-3.5 ${
-                  isSeniorSecondary ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'
+                  isSeniorSecondary ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'
                 }`}
               >
                 {availableSubjectOptions.map((sub) => {
@@ -654,10 +685,10 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  Pick 1 Toughest Topic per Subject! 🔥
+                  Pick the Toughest Topic! 🔥
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Choose one core concept per subject for our master educator to crack live in the demo
+                  Vote for the concept you want our master educator to crack live in the demo
                 </p>
               </div>
             </div>
@@ -666,7 +697,7 @@ export const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ onSuccess, voteS
               studentClass={studentClass}
               selectedSubjects={selectedSubjects}
               selectedTopics={selectedTopics}
-              onToggleTopic={handleSelectTopic}
+              onToggleTopic={handleToggleTopic}
               voteStats={classVoteStats}
             />
           </div>
